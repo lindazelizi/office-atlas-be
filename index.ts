@@ -1,7 +1,7 @@
-import express from "express";
-import cors from "cors";
-import dotenv from "dotenv";
-import { createClient } from "@supabase/supabase-js";
+import express, { Request, Response } from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { getAllLocations, getLocationById, getNearbyLocations } from './services/locationService.js';
 
 dotenv.config();
 
@@ -9,82 +9,95 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const supabaseUrl = process.env.SUPABASE_URL || "";
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "";
+const SODERTALJE_BOUNDS = {
+    minLat: 59.15,
+    maxLat: 59.21,
+    minLng: 17.62,
+    maxLng: 17.77
+};
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-app.get("/", (req, res) => {
-    res.status(200).json({ status: "ok" });
+app.get('/', (req: Request, res: Response) => {
+    res.status(200).json({ status: 'ok' });
 });
 
-app.get("/locations", async (_, response) => {
+app.get('/locations', async (req: Request, res: Response) => {
     try {
-        const { data, error } = await supabase.from("locations").select();
-        console.log(data);
-        return response.send(data);
+        const typeQuery = (typeof req.query.type === 'string' ? req.query.type : undefined) as string | undefined;
+        const locations = await getAllLocations(typeQuery);
+        res.status(200).json(locations);
     } catch (error) {
-        return response.send({ error });
+        console.error('Error in GET /locations:', error);
+        res.status(500).json({ error: 'Failed to fetch locations' });
     }
 });
 
-
-function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 6371; // Earth radius in km
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLng = ((lng2 - lng1) * Math.PI) / 180;
-    const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLng / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-app.get("/locations/near", async (request, response) => {
-    const lat = parseFloat(request.query.lat as string);
-    const lng = parseFloat(request.query.lng as string);
-    const radius = parseFloat((request.query.radius as string) ?? "5");
-    const type = request.query.type as string | undefined;
-
-    if (isNaN(lat) || isNaN(lng)) {
-        return response.status(400).json({ error: "lat and lng are required query parameters" });
-    }
-
+app.get('/locations/in-bounds', async (req: Request, res: Response) => {
     try {
-        let query = supabase.from("locations").select();
-        if (type) query = query.eq("type", type);
+        const typeStr: string | undefined = (typeof req.query.type === 'string' ? req.query.type : undefined);
 
-        const { data, error } = await query;
-        if (error) return response.status(500).json({ error });
+        const centerLat = (SODERTALJE_BOUNDS.minLat + SODERTALJE_BOUNDS.maxLat) / 2;
+        const centerLng = (SODERTALJE_BOUNDS.minLng + SODERTALJE_BOUNDS.maxLng) / 2;
+        const radiusInMeters = 3000;
 
-        const nearby = (data ?? [])
-            .map((loc: any) => ({
-                ...loc,
-                distance_km: haversineDistance(lat, lng, loc.coordinates.lat, loc.coordinates.lng),
-            }))
-            .filter((loc: any) => loc.distance_km <= radius)
-            .sort((a: any, b: any) => a.distance_km - b.distance_km);
+        const locationsInBounds = await getNearbyLocations(
+            { lat: centerLat, lng: centerLng },
+            radiusInMeters,
+            typeStr as 'restaurant' | 'train' | 'bus' | undefined
+        );
 
-        return response.json(nearby);
-    } catch (err) {
-        return response.status(500).json({ error: err });
+        res.status(200).json(locationsInBounds);
+    } catch (error: any) {
+        console.error('Error in GET /locations/in-bounds:', error);
+        res.status(500).json({ error: 'Failed to fetch locations in bounds' });
     }
 });
 
-app.get("/locations/:id", async (request, response) => {
+app.get('/locations/nearby/:officeId', async (req: Request, res: Response) => {
     try {
-        const { data, error } = await supabase
-            .from("locations")
-            .select()
-            .eq("id", request.params.id)
-        console.log(data);
-        return response.send(data);
+        const officeId = req.params.officeId as string;
+        const radiusStr: string = (typeof req.query.radius === 'string' ? req.query.radius : undefined) ?? '1000';
+        const typeStr: string | undefined = (typeof req.query.type === 'string' ? req.query.type : undefined);
+
+        const radius = Math.max(100, parseInt(radiusStr, 10) || 1000);
+        const type: 'restaurant' | 'train' | 'bus' | undefined = typeStr as 'restaurant' | 'train' | 'bus' | undefined;
+
+        if (isNaN(radius) || radius < 100) {
+            return res.status(400).json({
+                error: 'Radius must be a number >= 100 meters',
+            });
+        }
+
+        const nearbyLocations = await getNearbyLocations(officeId, radius, type);
+        res.status(200).json(nearbyLocations);
+    } catch (error: any) {
+        console.error('Error in GET /locations/nearby/:officeId:', error);
+
+        if (error.message.includes('not found')) {
+            return res.status(404).json({ error: error.message });
+        }
+
+        if (error.message.includes('not an office')) {
+            return res.status(400).json({ error: error.message });
+        }
+
+        res.status(500).json({ error: 'Failed to fetch nearby locations', details: error?.message });
+    }
+});
+
+app.get('/locations/:id', async (req: Request, res: Response) => {
+    try {
+        const location = await getLocationById(req.params.id as string);
+
+        if (!location) {
+            return res.status(404).json({ error: 'Location not found' });
+        }
+
+        res.status(200).json(location);
     } catch (error) {
-        return response.send({ error });
+        console.error('Error in GET /locations/:id:', error);
+        res.status(500).json({ error: 'Failed to fetch location' });
     }
 });
-
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

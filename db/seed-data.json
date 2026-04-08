@@ -1,0 +1,49 @@
+{
+    "offices": [
+        {
+            "name": "SmartLab 1",
+            "type": "office",
+            "coordinates": {
+                "lat": 59.18,
+                "lng": 17.65
+            },
+            "description": "Modern office space with state-of-the-art facilities. Hours: 08:00 - 17:00. Badge access required."
+        },
+        {
+            "name": "Building 200",
+            "type": "office",
+            "coordinates": {
+                "lat": 59.19,
+                "lng": 17.63
+            },
+            "description": "Professional workplace environment. Hours: 09:00 - 18:00. Visitor registration required."
+        },
+        {
+            "name": "SmartLab 2",
+            "type": "office",
+            "coordinates": {
+                "lat": 59.17,
+                "lng": 17.67
+            },
+            "description": "Modern office space with state-of-the-art facilities. Hours: 07:00 - 19:00. Only authorized personnel."
+        },
+        {
+            "name": "Building 150",
+            "type": "office",
+            "coordinates": {
+                "lat": 59.20,
+                "lng": 17.64
+            },
+            "description": "Professional workplace environment. Hours: 10:00 - 16:00. Hard hat required."
+        },
+        {
+            "name": "SmartLab 3",
+            "type": "office",
+            "coordinates": {
+                "lat": 59.21,
+                "lng": 17.76
+            },
+            "description": "Modern office space with state-of-the-art facilities. Hours: 08:00 - 17:00. Restricted area."
+        }
+    ]
+}
