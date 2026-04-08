@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { GooglePlacesLocation } from '../types/location.js';
+import { raw } from 'express';
 
 const PLACE_TYPES = {
     restaurant: 'restaurant',
@@ -10,21 +11,22 @@ const PLACE_TYPES = {
 function mapGoogleTypeToLocationType(googleTypes: string[]): 'restaurant' | 'train' | 'bus' | null {
     if (!googleTypes) return null;
 
-    const transitTypes = [
-        'train_station',
-        'subway_station',
-        'light_rail_station',
-        'transit_station',
-        'tram_stop'
-    ];
-    if (googleTypes.some(t => transitTypes.includes(t))) return 'train';
-
     const busTypes = [
-        'bus_station',
         'bus_stop',
+        'bus_station',
         'transit_stop'
     ];
     if (googleTypes.some(t => busTypes.includes(t))) return 'bus';
+
+    const trainTypes = [
+        'train_station',
+        'subway_station',
+        'light_rail_station',
+        'tram_stop'
+    ];
+    if (googleTypes.some(t => trainTypes.includes(t))) return 'train';
+
+    if (googleTypes.includes('transit_station')) return 'train';
 
     const restaurantTypes = [
         'restaurant',
@@ -65,7 +67,7 @@ export async function fetchNearbyLocations(
         for (const placeType of types) {
             const requestBody = {
                 includedTypes: [placeType],
-                maxResultCount: 20,
+                maxResultCount: 300,
                 locationRestriction: {
                     circle: {
                         center: {
@@ -110,6 +112,7 @@ export async function fetchNearbyLocations(
                                 id: `gp-${randomUUID()}`,
                                 name: place.displayName?.text || 'Unknown',
                                 type: mappedType,
+                                rawGoogleTypes: place.types,
                                 coordinates: {
                                     lat: place.location.latitude,
                                     lng: place.location.longitude,

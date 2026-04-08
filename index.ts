@@ -9,12 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const SODERTALJE_BOUNDS = {
-    minLat: 59.15,
-    maxLat: 59.21,
-    minLng: 17.62,
-    maxLng: 17.77
+const SODERTALJE_CENTER = {
+    lat: 59.1922042719759,
+    lng: 17.628052241303465
 };
+
+const SODERTALJE_RADIUS_METERS = 7000;
 
 app.get('/', (req: Request, res: Response) => {
     res.status(200).json({ status: 'ok' });
@@ -35,16 +35,11 @@ app.get('/locations/in-bounds', async (req: Request, res: Response) => {
     try {
         const typeStr: string | undefined = (typeof req.query.type === 'string' ? req.query.type : undefined);
 
-        const centerLat = (SODERTALJE_BOUNDS.minLat + SODERTALJE_BOUNDS.maxLat) / 2;
-        const centerLng = (SODERTALJE_BOUNDS.minLng + SODERTALJE_BOUNDS.maxLng) / 2;
-        const radiusInMeters = 3000;
-
         const locationsInBounds = await getNearbyLocations(
-            { lat: centerLat, lng: centerLng },
-            radiusInMeters,
+            { lat: SODERTALJE_CENTER.lat, lng: SODERTALJE_CENTER.lng },
+            SODERTALJE_RADIUS_METERS,
             typeStr as 'restaurant' | 'train' | 'bus' | undefined
         );
-
         res.status(200).json(locationsInBounds);
     } catch (error: any) {
         console.error('Error in GET /locations/in-bounds:', error);
