@@ -67,7 +67,7 @@ export async function fetchNearbyLocations(
         for (const placeType of types) {
             const requestBody = {
                 includedTypes: [placeType],
-                maxResultCount: 300,
+                maxResultCount: 20,
                 locationRestriction: {
                     circle: {
                         center: {
