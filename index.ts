@@ -1,7 +1,8 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { getAllLocations, getLocationById, getNearbyLocations } from './services/locationService.js';
+import { getAllLocations, getNearbyLocations } from './services/locationService.js';
+import { createClient } from '@supabase/supabase-js';
 
 dotenv.config();
 
@@ -9,12 +10,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const SODERTALJE_CENTER = {
-    lat: 59.1922042719759,
-    lng: 17.628052241303465
-};
-
-const SODERTALJE_RADIUS_METERS = 7000;
+const supabase = createClient(
+    process.env.SUPABASE_URL || '',
+    process.env.SUPABASE_ANON_KEY || ''
+);
 
 app.get('/', (req: Request, res: Response) => {
     res.status(200).json({ status: 'ok' });
@@ -23,27 +22,41 @@ app.get('/', (req: Request, res: Response) => {
 app.get('/locations', async (req: Request, res: Response) => {
     try {
         const typeQuery = (typeof req.query.type === 'string' ? req.query.type : undefined) as string | undefined;
-        const locations = await getAllLocations(typeQuery);
-        res.status(200).json(locations);
+
+        const offices = await getAllLocations(typeQuery);
+
+        let externalLocations: any[] = [];
+        if (!typeQuery || ['restaurant', 'train', 'bus'].includes(typeQuery)) {
+            const { data } = await supabase.from('external_locations').select('*');
+            externalLocations = data || [];
+
+            externalLocations = externalLocations.map(row => ({
+                id: row.id,
+                name: row.name,
+                type: row.type,
+                coordinates: row.coordinates,
+                description: row.description,
+                rating: row.rating,
+                userRatingCount: row.user_rating_count,
+                googleMapsUri: row.google_maps_uri,
+                websiteUri: row.website_uri,
+                phoneNumber: row.phone_number,
+                priceLevel: row.price_level,
+                businessStatus: row.business_status,
+                openingHours: row.opening_hours,
+            }));
+
+            if (typeQuery) {
+                externalLocations = externalLocations.filter(loc => loc.type === typeQuery);
+            }
+        }
+
+        // Merge offices + external locations
+        const allLocations = [...offices, ...externalLocations];
+        res.status(200).json(allLocations);
     } catch (error) {
         console.error('Error in GET /locations:', error);
         res.status(500).json({ error: 'Failed to fetch locations' });
-    }
-});
-
-app.get('/locations/in-bounds', async (req: Request, res: Response) => {
-    try {
-        const typeStr: string | undefined = (typeof req.query.type === 'string' ? req.query.type : undefined);
-
-        const locationsInBounds = await getNearbyLocations(
-            { lat: SODERTALJE_CENTER.lat, lng: SODERTALJE_CENTER.lng },
-            SODERTALJE_RADIUS_METERS,
-            typeStr as 'restaurant' | 'train' | 'bus' | undefined
-        );
-        res.status(200).json(locationsInBounds);
-    } catch (error: any) {
-        console.error('Error in GET /locations/in-bounds:', error);
-        res.status(500).json({ error: 'Failed to fetch locations in bounds' });
     }
 });
 
@@ -79,22 +92,26 @@ app.get('/locations/nearby/:officeId', async (req: Request, res: Response) => {
     }
 });
 
-app.get('/locations/:id', async (req: Request, res: Response) => {
-    try {
-        const location = await getLocationById(req.params.id as string);
-
-        if (!location) {
-            return res.status(404).json({ error: 'Location not found' });
-        }
-
-        res.status(200).json(location);
-    } catch (error) {
-        console.error('Error in GET /locations/:id:', error);
-        res.status(500).json({ error: 'Failed to fetch location' });
-    }
-});
-
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
+
+// API LIMIT REACHED - All data pulled from database only
+// Commenting out API calls until quota is refreshed
+
+/*
+(async () => {
+    try {
+        console.log('🔄 Populating location cache...');
+        await fetchNearbyLocations(
+            SODERTALJE_CENTER.lat,
+            SODERTALJE_CENTER.lng,
+            SODERTALJE_RADIUS_METERS
+        );
+        console.log('✅ Cache populated successfully');
+    } catch (err) {
+        console.error('⚠️ Cache population error:', err);
+    }
+})();
+*/

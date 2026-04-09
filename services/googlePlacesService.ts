@@ -1,6 +1,11 @@
-import { randomUUID } from 'crypto';
+import { createClient } from '@supabase/supabase-js';
 import type { GooglePlacesLocation } from '../types/location.js';
-import { raw } from 'express';
+import { mapGoogleTypeToLocationType } from '../utils/general.js';
+
+const supabase = createClient(
+    process.env.SUPABASE_URL || '',
+    process.env.SUPABASE_ANON_KEY || ''
+);
 
 const PLACE_TYPES = {
     restaurant: 'restaurant',
@@ -8,50 +13,41 @@ const PLACE_TYPES = {
     bus: 'bus_station',
 };
 
-function mapGoogleTypeToLocationType(googleTypes: string[]): 'restaurant' | 'train' | 'bus' | null {
-    if (!googleTypes) return null;
+export async function storeLocationInDatabase(
+    location: GooglePlacesLocation & { googleId?: string }
+) {
+    try {
+        const { error } = await supabase.from('external_locations').upsert({
+            id: location.id,
+            name: location.name,
+            type: location.type,
+            coordinates: location.coordinates,
+            rating: location.rating,
+            user_rating_count: location.userRatingCount,
+            price_level: location.priceLevel,
+            business_status: location.businessStatus,
+            phone_number: location.phoneNumber,
+            website_uri: location.websiteUri,
+            google_maps_uri: location.googleMapsUri,
+            opening_hours: location.openingHours,
+            last_fetched: new Date().toISOString(),
+            last_checked: new Date().toISOString()
+        });
 
-    const busTypes = [
-        'bus_stop',
-        'bus_station',
-        'transit_stop'
-    ];
-    if (googleTypes.some(t => busTypes.includes(t))) return 'bus';
-
-    const trainTypes = [
-        'train_station',
-        'subway_station',
-        'light_rail_station',
-        'tram_stop'
-    ];
-    if (googleTypes.some(t => trainTypes.includes(t))) return 'train';
-
-    if (googleTypes.includes('transit_station')) return 'train';
-
-    const restaurantTypes = [
-        'restaurant',
-        'cafe',
-        'coffee_shop',
-        'buffet',
-        'bakery',
-        'bar',
-        'fast_food_restaurant',
-        'pizza_restaurant',
-        'ramen_restaurant',
-        'sushi_restaurant',
-        'steak_house',
-        'tea_house'
-    ];
-    if (googleTypes.some(t => restaurantTypes.includes(t))) return 'restaurant';
-
-    return null;
+        if (error) console.error(`❌ Failed to store "${location.name}":`, error);
+    } catch (err) {
+        console.error(`❌ Exception storing "${location.name}":`, err);
+    }
 }
 
+// API LIMIT REACHED - Commenting out Google Places API calls
+// Will be re-enabled when API quota is refreshed
+/*
 export async function fetchNearbyLocations(
     lat: number,
     lng: number,
     radiusInMeters: number,
-    type?: 'restaurant' | 'train' | 'bus'
+    type?: 'restaurant' | 'train' | 'bus',
 ): Promise<GooglePlacesLocation[]> {
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
 
@@ -65,6 +61,7 @@ export async function fetchNearbyLocations(
         const locations: GooglePlacesLocation[] = [];
 
         for (const placeType of types) {
+            console.log(`📍 Fetching ${placeType}...`);
             const requestBody = {
                 includedTypes: [placeType],
                 maxResultCount: 20,
@@ -84,14 +81,19 @@ export async function fetchNearbyLocations(
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Goog-Api-Key': apiKey,
-                    'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.nationalPhoneNumber,places.currentOpeningHours,places.photos,places.priceLevel,places.businessStatus,places.types',
+                    'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.nationalPhoneNumber,places.currentOpeningHours,places.priceLevel,places.businessStatus,places.types',
                 },
                 body: JSON.stringify(requestBody),
             });
 
+            if (response.status === 503) {
+                console.log('⏳ Service unavailable, retrying in 5 seconds...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                continue;
+            }
+
             if (!response.ok) {
                 const errorText = await response.text();
-                console.log('Error response:', errorText);
                 throw new Error(`Google Places API error: ${response.statusText} - ${errorText}`);
             }
 
@@ -101,44 +103,59 @@ export async function fetchNearbyLocations(
                 throw new Error(`Google Places API: ${data.error.message}`);
             }
 
-            if (data.places && Array.isArray(data.places)) {
-                locations.push(
-                    ...data.places
-                        .map((place: any) => {
-                            const mappedType = mapGoogleTypeToLocationType(place.types);
-                            if (!mappedType) return null;
+            console.log(`✅ Got ${data.places?.length || 0} raw results for ${placeType}`);
 
-                            return {
-                                id: `gp-${randomUUID()}`,
-                                name: place.displayName?.text || 'Unknown',
-                                type: mappedType,
-                                rawGoogleTypes: place.types,
-                                coordinates: {
-                                    lat: place.location.latitude,
-                                    lng: place.location.longitude,
-                                },
-                                description: place.formattedAddress || 'No address available',
-                                rating: place.rating,
-                                userRatingCount: place.userRatingCount,
-                                googleMapsUri: place.googleMapsUri,
-                                websiteUri: place.websiteUri,
-                                phoneNumber: place.nationalPhoneNumber,
-                                priceLevel: place.priceLevel,
-                                businessStatus: place.businessStatus,
-                                openingHours: place.currentOpeningHours ? {
-                                    weekdayDescriptions: place.currentOpeningHours.weekdayDescriptions,
-                                } : undefined,
-                                photos: place.photos,
-                            };
-                        })
-                        .filter((loc: any) => loc !== null)
-                );
+            if (data.places && Array.isArray(data.places)) {
+                for (const place of data.places) {
+                    const mappedType = mapGoogleTypeToLocationType(place.types);
+                    if (!mappedType) continue;
+
+                    const location: GooglePlacesLocation & { googleId?: string } = {
+                        id: place.id,
+                        name: place.displayName?.text || 'Unknown',
+                        type: mappedType,
+                        coordinates: {
+                            lat: place.location.latitude,
+                            lng: place.location.longitude,
+                        },
+                        description: place.formattedAddress || 'No address available',
+                        rating: place.rating,
+                        userRatingCount: place.userRatingCount,
+                        googleMapsUri: place.googleMapsUri,
+                        websiteUri: place.websiteUri,
+                        phoneNumber: place.nationalPhoneNumber,
+                        priceLevel: place.priceLevel,
+                        businessStatus: place.businessStatus,
+                        openingHours: place.currentOpeningHours ? {
+                            weekdayDescriptions: place.currentOpeningHours.weekdayDescriptions,
+                        } : undefined,
+                        googleId: place.id
+                    };
+
+                    locations.push(location);
+                    await storeLocationInDatabase(location);
+                }
             }
+            console.log(`💾 Stored ${locations.length} total locations so far`);
+
         }
+        console.log(`🎉 Finished: ${locations.length} locations total`);
 
         return locations;
     } catch (error) {
         console.error('Error fetching from Google Places API:', error);
         throw error;
     }
+}
+*/
+
+// Stub function while API is unavailable
+export async function fetchNearbyLocations(
+    lat: number,
+    lng: number,
+    radiusInMeters: number,
+    type?: 'restaurant' | 'train' | 'bus',
+): Promise<GooglePlacesLocation[]> {
+    console.log('⏸️  API calls disabled - using database only');
+    return [];
 }

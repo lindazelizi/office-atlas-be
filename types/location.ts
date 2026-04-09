@@ -25,17 +25,6 @@ export interface Location {
     openingHours?: {
         weekdayDescriptions?: string[];
     };
-    photos?: Array<{
-        name: string;
-        heightPx?: number;
-        widthPx?: number;
-        flagContentUri?: string;
-        authorAttributions?: Array<{
-            displayName: string;
-            uri?: string;
-            photoUri?: string;
-        }>;
-    }>;
 }
 
 export interface GooglePlacesLocation extends Location { }
@@ -67,14 +56,6 @@ export interface GooglePlacesResult {
     currentOpeningHours?: {
         weekdayDescriptions?: string[];
     };
-    photos?: Array<{
-        name: string;
-        heightPx?: number;
-        widthPx?: number;
-        authorAttributions?: Array<{
-            displayName: string;
-        }>;
-    }>;
     priceLevel?: string;
     businessStatus?: string;
 }
