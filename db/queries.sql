@@ -11,5 +11,14 @@ CREATE TABLE locations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+CREATE TABLE users (
+    user_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(50) NOT NULL,
+    password VARCHAR(60) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    unique key (email)
+);
+
+
 -- Create an index on type for faster queries
 CREATE INDEX idx_locations_type ON locations(type);

@@ -8,8 +8,6 @@ const supabase = createClient(
 export async function getAllLocations(type?: string) {
     try {
         let query = supabase.from('locations').select();
-
-        //In case we add more intern locations in the future, we can filter by type.
         if (type) {
             query = query.eq('type', type);
         }
