@@ -6,7 +6,7 @@ export const loginOne = async (req: Request, res: Response) => {
         const foundUser = await userServices.login(req.body);
         res.status(200).send(foundUser);
     } catch (error) {
-        return res.status(500).send((error));
+        return res.status(401).json({ error: 'Invalid email or password' });
     }
 };
 
