@@ -2,10 +2,9 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { getAllLocations } from './services/locationService.js';
-import { createClient } from '@supabase/supabase-js';
 import * as userController from './controllers/user.controller.js';
 import { auth } from './middleware/auth.js';
-
+import { loginValidation, registerValidation, handleValidationErrors } from './middleware/validators.js';
 
 
 dotenv.config();
@@ -31,8 +30,8 @@ app.get('/locations', auth, async (req: Request, res: Response) => {
 });
 
 
-app.post('/login', userController.loginOne);
-app.post('/register', userController.registerOne);
+app.post('/login', loginValidation, handleValidationErrors, userController.loginOne);
+app.post('/register', registerValidation, handleValidationErrors, userController.registerOne);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
