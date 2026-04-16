@@ -13,6 +13,8 @@ if (!SECRET_KEY) {
     throw new Error('SUPER_SECRET_KEY environment variable is not set');
 }
 
+const JWT_SECRET = SECRET_KEY as string;
+
 export async function register(user: { email: string; password: string }): Promise<void> {
     try {
         const hashedPassword = await bcrypt.hash(user.password, 10);
@@ -45,7 +47,7 @@ export async function login(user: { email: string; password: string }) {
         const isMatch = await bcrypt.compare(user.password, data.password);
 
         if (isMatch) {
-            const token = jwt.sign({ user_id: data.user_id }, SECRET_KEY, {
+            const token = jwt.sign({ user_id: data.user_id }, JWT_SECRET, {
                 expiresIn: '24h',
             });
 

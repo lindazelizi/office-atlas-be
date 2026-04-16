@@ -4,11 +4,13 @@ dotenv.config();
 import jwt, { Secret, JwtPayload } from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
-export const SECRET_KEY: Secret = process.env.SUPER_SECRET_KEY || 'fallback-key';
+const SECRET_KEY_ENV = process.env.SUPER_SECRET_KEY || 'fallback-key';
+export const SECRET_KEY: Secret = SECRET_KEY_ENV as string;
 
-if (!SECRET_KEY || SECRET_KEY === 'fallback-key') {
+if (!process.env.SUPER_SECRET_KEY) {
     console.warn('SUPER_SECRET_KEY not set in environment!');
 }
+
 export interface CustomRequest extends Request {
     token: string | JwtPayload;
 }
