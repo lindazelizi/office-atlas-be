@@ -56,7 +56,7 @@ export async function login(user: { email: string; password: string }) {
 
         if (isMatch) {
             const token = jwt.sign({ user_id: data.user_id }, JWT_SECRET, {
-                expiresIn: '1m',
+                expiresIn: '30m',
             });
             const refreshToken = jwt.sign({ user_id: data.user_id }, REFRESH_SECRET, {
                 expiresIn: '7d',
