@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import * as userServices from '../services/userService.js';
 import { recordFailedLogin, resetLoginAttempts } from '../middleware/limit.js';
 
@@ -12,6 +13,22 @@ export const loginOne = async (req: Request, res: Response) => {
         return res.status(401).json({
             error: error instanceof Error ? error.message : 'Invalid email or password'
         });
+    }
+};
+
+export const refresh = (req: Request, res: Response) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+        return res.status(400).json({ error: 'Refresh token required' });
+    }
+    try {
+        const result = userServices.refreshAccessToken(refreshToken);
+        return res.status(200).json(result);
+    } catch (error) {
+        if (error instanceof jwt.TokenExpiredError) {
+            return res.status(401).json({ error: 'Refresh token expired, please log in again' });
+        }
+        return res.status(401).json({ error: 'Invalid refresh token' });
     }
 };
 
