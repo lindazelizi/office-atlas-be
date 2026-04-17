@@ -45,6 +45,7 @@ app.get('/locations', auth, async (req: Request, res: Response) => {
 
 app.post('/login', loginLimiter, loginValidation, handleValidationErrors, userController.loginOne);
 app.post('/register', registerValidation, handleValidationErrors, userController.registerOne);
+app.post('/refresh', userController.refresh);
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
