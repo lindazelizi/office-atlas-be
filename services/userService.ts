@@ -17,6 +17,19 @@ if (!process.env.REFRESH_SECRET_KEY) {
 const JWT_SECRET = process.env.SUPER_SECRET_KEY as string;
 const REFRESH_SECRET = process.env.REFRESH_SECRET_KEY as string;
 
+export async function checkAuthAvailability(): Promise<boolean> {
+    try {
+        const { error } = await supabase
+            .from('users')
+            .select('user_id')
+            .limit(1);
+
+        return !error;
+    } catch {
+        return false;
+    }
+}
+
 export function refreshAccessToken(refreshToken: string): { token: string } {
     const payload = jwt.verify(refreshToken, REFRESH_SECRET) as unknown as { user_id: string };
     const token = jwt.sign({ user_id: payload.user_id }, JWT_SECRET, { expiresIn: '1h' });

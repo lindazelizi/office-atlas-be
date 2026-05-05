@@ -3,6 +3,11 @@ import jwt from 'jsonwebtoken';
 import * as userServices from '../services/userService.js';
 import { recordFailedLogin, resetLoginAttempts } from '../middleware/limit.js';
 
+export const authStatus = async (_req: Request, res: Response) => {
+    const available = await userServices.checkAuthAvailability();
+    res.status(available ? 200 : 503).json({ available });
+};
+
 export const loginOne = async (req: Request, res: Response) => {
     try {
         const foundUser = await userServices.login(req.body);
